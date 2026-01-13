@@ -5,6 +5,7 @@ from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
 from django.core.paginator import Paginator
+from django.views.decorators.csrf import csrf_exempt
 import json
 
 from .models import User, Post, Follow
@@ -106,6 +107,52 @@ def follow(request, username):
     
     return HttpResponseRedirect(reverse("index"))
 
+    
+@login_required
+def following(request):
+    # Get all users that the current user follows
+    following_users = Follow.objects.filter(follower=request.user).values_list('following', flat=True)
+    
+    # Get all posts of the following users
+    posts = Post.objects.filter(author__in=following_users)
+    
+    # Pagination
+    paginator = Paginator(posts, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    return render(request, "network/following.html", {
+        "page_obj": page_obj
+    })
+
+
+@csrf_exempt
+@login_required
+def edit_post(request, post_id):
+    if request.method == "PUT":
+        try:
+            post = Post.objects.get(pk=post_id)
+            
+            # Security check: Only the author can edit their post
+            if post.author != request.user:
+                return JsonResponse({"error": "Not authorized"}, status=403)
+            
+            # Load new data
+            data = json.loads(request.body)
+            new_content = data.get("content", "")
+            
+            if new_content:
+                post.content = new_content
+                post.save()
+                return JsonResponse({"message": "Post updated", "content": post.content}, status=200)
+            else:
+                return JsonResponse({"error": "Content cannot be empty"}, status=400)
+                
+        except Post.DoesNotExist:
+            return JsonResponse({"error": "Post not found"}, status=404)
+    
+    return JsonResponse({"error": "PUT request required"}, status=400)
+
 
 def login_view(request):
     if request.method == "POST":
@@ -157,3 +204,30 @@ def register(request):
         return HttpResponseRedirect(reverse("index"))
     else:
         return render(request, "network/register.html")
+
+@csrf_exempt
+@login_required
+def toggle_like(request, post_id):
+    if request.method == "POST":
+        try:
+            post = Post.objects.get(pk=post_id)
+            
+            # Toggle like/unlike
+            if request.user in post.likes.all():
+                # Unlike
+                post.likes.remove(request.user)
+                liked = False
+            else:
+                # Like
+                post.likes.add(request.user)
+                liked = True
+            
+            return JsonResponse({
+                "liked": liked,
+                "like_count": post.like_count()
+            }, status=200)
+            
+        except Post.DoesNotExist:
+            return JsonResponse({"error": "Post not found"}, status=404)
+    
+    return JsonResponse({"error": "POST request required"}, status=400)

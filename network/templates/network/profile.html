@@ -3,36 +3,42 @@
 {% block body %}
     <div class="container mt-4">
         
-        <!-- New Post Form (only for logged in users) -->
-        {% if user.is_authenticated %}
+        <!-- Profile Header -->
         <div class="card mb-4">
             <div class="card-body">
-                <h5 class="card-title">New Post</h5>
-                <form action="{% url 'create_post' %}" method="post">
-                    {% csrf_token %}
-                    <div class="form-group">
-                        <textarea class="form-control" name="content" rows="3" placeholder="What's on your mind?" maxlength="280" required></textarea>
+                <h3>{{ profile_user.username }}</h3>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <p><strong>Followers:</strong> {{ followers_count }}</p>
+                        <p><strong>Following:</strong> {{ following_count }}</p>
                     </div>
-                    <button type="submit" class="btn btn-primary mt-2">Post</button>
+                </div>
+                
+                <!-- Follow/Unfollow Button (nur für andere User) -->
+                {% if user.is_authenticated and user != profile_user %}
+                <form action="{% url 'follow' profile_user.username %}" method="post" class="mt-3">
+                    {% csrf_token %}
+                    {% if is_following %}
+                        <button type="submit" class="btn btn-secondary">Unfollow</button>
+                    {% else %}
+                        <button type="submit" class="btn btn-primary">Follow</button>
+                    {% endif %}
                 </form>
+                {% endif %}
             </div>
         </div>
-        {% endif %}
 
-        <!-- All Posts Section -->
-        <h3>All Posts</h3>
+        <!-- User's Posts -->
+        <h4>Posts by {{ profile_user.username }}</h4>
         
         {% for post in page_obj %}
         <div class="card mb-3" id="post-{{ post.id }}">
             <div class="card-body">
-                <h6 class="card-subtitle mb-2">
-                    <a href="{% url 'profile' post.author.username %}" class="text-decoration-none">{{ post.author.username }}</a>
-                    
-                    <!-- Edit Button (only for own posts) -->
-                    {% if user.is_authenticated and post.author == user %}
-                        <button class="btn btn-sm btn-outline-primary float-end edit-btn" data-post-id="{{ post.id }}">Edit</button>
-                    {% endif %}
-                </h6>
+                <!-- Edit Button für eigene Posts -->
+                {% if user.is_authenticated and post.author == user %}
+                    <button class="btn btn-sm btn-outline-primary float-end edit-btn" data-post-id="{{ post.id }}">Edit</button>
+                {% endif %}
+                
                 <p class="card-text post-content">{{ post.content }}</p>
                 <p class="text-muted small">
                     {{ post.timestamp|date:"M d, Y, g:i a" }}
@@ -59,9 +65,6 @@
             <ul class="pagination justify-content-center">
                 {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page=1">First</a>
-                </li>
-                <li class="page-item">
                     <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
                 </li>
                 {% endif %}
@@ -76,14 +79,10 @@
                 <li class="page-item">
                     <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
                 </li>
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last</a>
-                </li>
                 {% endif %}
             </ul>
         </nav>
         {% endif %}
 
     </div>
-
 {% endblock %}
